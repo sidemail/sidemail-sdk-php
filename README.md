@@ -254,7 +254,7 @@ $contact = $sm->contacts->createOrUpdate([
     'email'      => 'user@example.com',
     'firstName'  => 'Jane',
     'lastName'   => 'Doe',
-    'attributes' => [
+    'customProps' => [
         'plan' => 'pro',
     ],
 ]);
@@ -276,7 +276,7 @@ if ($contact !== null) {
 $result = $sm->contacts->query([
     'limit' => 100,
     'query' => [
-        'attributes.plan' => 'pro',
+        'customProps.plan' => 'pro',
     ],
 ]);
 
