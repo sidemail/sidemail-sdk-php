@@ -1,14 +1,25 @@
 # Sidemail PHP library
 
-Official PHP client for the Sidemail API.
+The Sidemail PHP library provides convenient access to the Sidemail API from applications written in PHP.
 
----
+## Requirements
+
+- PHP 8.1+
+- `ext-curl`
 
 ## Installation
+
+Install this package with:
 
 ```bash
 composer require sidemail/sidemail
 ```
+
+## Usage
+
+First, the package needs to be configured with your project's API key, which you can find in the Sidemail Dashboard after you signed up.
+
+Initiate the SDK:
 
 ```php
 <?php
@@ -17,474 +28,263 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Sidemail\Sidemail;
 
-$sm = new Sidemail(apiKey: 'your-api-key');
+// Create Sidemail instance and set your API key.
+$sidemail = new Sidemail(apiKey: 'xxxxx');
 ```
 
-## Requires:
-
-- PHP 8.1+
-- `ext-curl`
-- HTTPS (OpenSSL + CA bundle)
-
----
-
-## Authentication
-
-You can pass the API key explicitly:
+Then, you can call `$sidemail->sendEmail` to send emails like so:
 
 ```php
-$sm = new Sidemail\Sidemail(apiKey: 'your-api-key');
+$sidemail->sendEmail([
+    'toAddress'     => 'user@email.com',
+    'fromAddress'   => 'you@example.com',
+    'fromName'      => 'Your app',
+    'templateName'  => 'Welcome',
+    'templateProps' => ['foo' => 'bar'],
+]);
 ```
 
-or via environment variable:
+The response will look like this:
 
-```bash
-export SIDEMAIL_API_KEY=your-api-key
-```
-
-```php
-$sm = new Sidemail\Sidemail(); // uses SIDEMAIL_API_KEY
-```
-
----
-
-## Client configuration
-
-```php
-$sm = new Sidemail\Sidemail(
-    apiKey:    'your-api-key',
-    baseUrl:   Sidemail\Sidemail::API_ROOT, // override for testing
-    timeout:   10.0,                        // per-request timeout (seconds)
-    httpClient: null,                       // custom HttpClient
-);
-```
-
----
-
-## Errors
-
-All exceptions extend `Sidemail\SidemailException`.
-
-Specific types:
-
-- `Sidemail\SidemailAuthException` – HTTP 401 / 403
-- `Sidemail\SidemailApiException` – other non-2xx responses (`getStatus()`, `getPayload()`)
-- `Sidemail\NetworkException` – network / cURL issues
-
-Example:
-
-```php
-use Sidemail\Sidemail;
-use Sidemail\SidemailException;
-use Sidemail\SidemailAuthException;
-use Sidemail\SidemailApiException;
-
-$sm = new Sidemail(apiKey: 'your-api-key');
-
-try {
-    $resp = $sm->sendEmail([
-        'toAddress'   => 'user@example.com',
-        'fromAddress' => 'you@example.com',
-        'subject'     => 'Hello',
-        'text'        => 'Hello from Sidemail PHP',
-    ]);
-} catch (SidemailAuthException $e) {
-    // invalid key / permissions
-} catch (SidemailApiException $e) {
-    // API error with JSON body
-    error_log($e->getStatus());
-    error_log(json_encode($e->getPayload()));
-} catch (SidemailException $e) {
-    // network or other SDK error
+```json
+{
+  "id": "5e858953daf20f3aac50a3da",
+  "status": "queued"
 }
 ```
 
----
+Learn more about Sidemail API:
 
-## Response objects
+- [See all available API options](https://sidemail.io/docs/send-transactional-emails#discover-all-available-api-parameters)
+- [See all possible errors and error codes](https://sidemail.io/docs/send-transactional-emails#api-errors)
 
-Most methods return `Sidemail\Resource`.
+## Email sending examples
 
-```php
-$email = $sm->email->get('email-id');
-
-// object-style access
-echo $email->id;
-echo $email->status;
-
-// array-style access
-echo $email['id'];
-
-// nested structures
-$event = $email->events[0];
-echo $event->type;
-echo $event->time;
-
-// original payload
-$raw  = $email->raw();      // original JSON as array
-$flat = $email->toArray();  // recursively unwrapped array
-```
-
-If a field is not a valid PHP identifier or clashes with a keyword, it is exposed with a trailing underscore (e.g. `class` → `$resource->class_`).
-
----
-
-## Pagination
-
-List/search methods return a `Sidemail\QueryResult`.
-
-Common properties:
+### Send password reset email template
 
 ```php
-$result = $sm->email->search([
-    'query' => ['status' => 'delivered'],
-    'limit' => 50,
+$sidemail->sendEmail([
+    'toAddress'     => 'user@email.com',
+    'fromAddress'   => 'you@example.com',
+    'fromName'      => 'Your app',
+    'templateName'  => 'Password reset',
+    'templateProps' => ['resetUrl' => 'https://your.app/reset?token=123'],
 ]);
-
-$result->data;        // items on the first page
-$result->total;       // total count, if provided
-$result->limit;       // page size
-$result->offset;      // offset (for offset-based endpoints)
-$result->hasMore;     // whether more pages are available
-$result->nextCursor;  // cursor (for cursor-based endpoints)
-$result->prevCursor;
 ```
 
-Iterate over all pages:
+### Schedule email delivery
 
 ```php
-foreach ($result->autoPaginate() as $email) {
-    echo $email['id'], ' ', $email['status'], PHP_EOL;
+$sidemail->sendEmail([
+    'toAddress'     => 'user@email.com',
+    'fromName'      => 'Startup name',
+    'fromAddress'   => 'your@startup.com',
+    'templateName'  => 'Welcome',
+    'templateProps' => ['firstName' => 'John'],
+    // Deliver email in 60 minutes from now
+    'scheduledAt'   => (new DateTime('+60 minutes'))->format(DateTime::ATOM),
+]);
+```
+
+### Send email template with dynamic list
+
+Useful for dynamic data where you have `n` items that you want to render in email. For example, items in a receipt, weekly statistic per project, new comments, etc.
+
+```php
+$sidemail->sendEmail([
+    'toAddress'     => 'user@email.com',
+    'fromName'      => 'Startup name',
+    'fromAddress'   => 'your@startup.com',
+    'templateName'  => 'Template with dynamic list',
+    'templateProps' => [
+        'list' => [
+            ['text' => 'Dynamic list'],
+            ['text' => 'allows you to generate email template content'],
+            ['text' => 'based on template props.'],
+        ],
+    ],
+]);
+```
+
+### Send custom HTML email
+
+```php
+$sidemail->sendEmail([
+    'toAddress'   => 'user@email.com',
+    'fromName'    => 'Startup name',
+    'fromAddress' => 'your@startup.com',
+    'subject'     => 'Testing html only custom emails :)',
+    'html'        => '<html><body><h1>Hello world! 👋</h1></body></html>',
+]);
+```
+
+### Send custom plain text email
+
+```php
+$sidemail->sendEmail([
+    'toAddress'   => 'user@email.com',
+    'fromName'    => 'Startup name',
+    'fromAddress' => 'your@startup.com',
+    'subject'     => 'Testing plain-text only custom emails :)',
+    'text'        => 'Hello world! 👋',
+]);
+```
+
+## Auto-pagination
+
+The SDK provides automatic pagination for list and search endpoints that return paginated results. This allows you to iterate through all results without manually handling pagination cursors.
+
+```php
+$result = $sidemail->contacts->list();
+
+foreach ($result->autoPaging() as $contact) {
+    echo $contact['emailAddress'];
+    // Process each contact across all pages automatically
 }
 ```
 
-If you only need the first page, use `$result->data`.
+**Supported methods:**
 
----
+- `$sidemail->contacts->list()`
+- `$sidemail->email->search()`
 
-## Email API
-
-Entry point: `$sm->email`
-Shortcut: `$sm->sendEmail(...)`
-
-### Send email
-
-```php
-$response = $sm->sendEmail([
-    'toAddress'   => 'user@example.com',
-    'fromAddress' => 'you@example.com',
-    'fromName'    => 'Your App',
-    'subject'     => 'Welcome',
-    'text'        => 'Welcome to our app.',
-    // 'html'         => '<strong>Welcome</strong>',
-    // 'templateName' => 'WelcomeTemplate',
-    // 'attachments'  => [...],
-]);
-```
-
-Equivalent low-level call:
-
-```php
-$response = $sm->email->send([
-    'toAddress'   => 'user@example.com',
-    'fromAddress' => 'you@example.com',
-    'subject'     => 'Welcome',
-    'text'        => 'Welcome to our app.',
-]);
-```
-
-### Attachments
-
-```php
-$data = file_get_contents('invoice.pdf');
-
-$attachment = Sidemail\Sidemail::fileToAttachment('invoice.pdf', $data);
-
-$sm->sendEmail([
-    'toAddress'    => 'user@example.com',
-    'fromAddress'  => 'you@example.com',
-    'subject'      => 'Invoice',
-    'text'         => 'Invoice attached.',
-    'attachments'  => [$attachment],
-]);
-```
-
-### Get email
-
-```php
-$email = $sm->email->get('email-id');
-
-echo $email->id;
-echo $email->status;
-echo $email->createdAt;
-```
-
-### Delete email
-
-```php
-$resp = $sm->email->delete('email-id');
-```
+## Email methods
 
 ### Search emails
 
+Searches emails based on the provided query and returns found email data. This endpoint is paginated and returns a maximum of 20 results per page. The email data are returned sorted by creation date, with the most recent emails appearing first. This endpoint supports [auto-pagination](#auto-pagination).
+
 ```php
-$result = $sm->email->search([
+$result = $sidemail->email->search([
     'query' => [
-        'status'    => 'delivered',
-        'toAddress' => 'user@example.com',
-    ],
-    'limit' => 100,
-]);
-
-foreach ($result->autoPaginate() as $email) {
-    echo $email['id'], ' ', $email['status'], PHP_EOL;
-}
-```
-
----
-
-## Contacts API
-
-Entry point: `$sm->contacts`
-
-### Create or update contact
-
-```php
-$contact = $sm->contacts->createOrUpdate([
-    'email'      => 'user@example.com',
-    'firstName'  => 'Jane',
-    'lastName'   => 'Doe',
-    'customProps' => [
-        'plan' => 'pro',
-    ],
-]);
-```
-
-### Find contact
-
-```php
-$contact = $sm->contacts->find('user@example.com');
-
-if ($contact !== null) {
-    echo $contact->email;
-}
-```
-
-### Query contacts
-
-```php
-$result = $sm->contacts->query([
-    'limit' => 100,
-    'query' => [
-        'customProps.plan' => 'pro',
+        'toAddress'     => 'john.doe@example.com',
+        'status'        => 'delivered',
+        'templateProps' => ['foo' => 'bar'],
     ],
 ]);
 
-foreach ($result->autoPaginate() as $contact) {
-    echo $contact['email'], PHP_EOL;
+echo "Found emails: ";
+print_r($result->data);
+echo "Has more: " . ($result->hasMore ? 'true' : 'false');
+```
+
+### Retrieve a specific email
+
+Retrieves the email data. You need only supply the email ID.
+
+```php
+$email = $sidemail->email->get('SIDEMAIL_EMAIL_ID');
+echo "Email data: ";
+print_r($email);
+```
+
+### Delete a scheduled email
+
+Permanently deletes an email. It cannot be undone. Only scheduled emails which are yet to be send can be deleted.
+
+```php
+$response = $sidemail->email->delete('SIDEMAIL_EMAIL_ID');
+echo "Email deleted: " . ($response->deleted ? 'true' : 'false');
+```
+
+## Contact methods
+
+### Create or update a contact
+
+```php
+try {
+    $response = $sidemail->contacts->createOrUpdate([
+        'emailAddress' => 'marry@lightning.com',
+        'identifier'   => '123',
+        'customProps'  => [
+            'name' => 'Marry Lightning',
+            // ... more of your contact props ...
+        ],
+    ]);
+
+    echo "Contact was '{$response->status}'.";
+} catch (Sidemail\SidemailException $e) {
+    // Uh-oh, we have an error! Your error handling logic...
+    error_log($e->getMessage());
 }
 ```
 
-### List contacts
+### Find a contact
 
 ```php
-$result = $sm->contacts->list([
-    'limit' => 50,
+$response = $sidemail->contacts->find('marry@lightning.com');
+```
+
+### List all contacts
+
+Lists all contacts in your project. This endpoint supports [auto-pagination](#auto-pagination).
+
+```php
+$result = $sidemail->contacts->list();
+
+print_r($result->data);                       // array of contacts
+echo $result->hasMore ? 'true' : 'false';     // boolean if more data
+echo $result->paginationCursorNext;           // cursor for next page
+```
+
+### Delete a contact
+
+```php
+$response = $sidemail->contacts->delete('marry@lightning.com');
+```
+
+## Project methods
+
+### Create a linked project
+
+A linked project is automatically associated with a regular project based on the `apiKey` provided into `Sidemail`. To personalize the email template design, make a subsequent update API request. Linked projects will be visible within the parent project on the API page in your Sidemail dashboard.
+
+```php
+// Create a linked project && save API key from $response->apiKey to your datastore
+$response = $sidemail->project->create([
+    'name' => 'Customer X linked project',
 ]);
 
-foreach ($result->autoPaginate() as $contact) {
-    echo $contact['email'], PHP_EOL;
-}
+// $user->save(['sidemailApiKey' => $response->apiKey]) ...
 ```
 
-### Delete contact
+### Update a linked project
+
+Updates a linked project based on the `apiKey` provided into `Sidemail`.
 
 ```php
-$resp = $sm->contacts->delete('user@example.com');
-```
-
----
-
-## Messenger API
-
-Entry point: `$sm->messenger`
-
-### List messengers
-
-```php
-$result = $sm->messenger->list([
-    'limit'  => 20,
-    'offset' => 0,
-]);
-
-foreach ($result->autoPaginate() as $messenger) {
-    echo $messenger['id'], ' ', $messenger['name'] ?? '', PHP_EOL;
-}
-```
-
-### Get messenger
-
-```php
-$messenger = $sm->messenger->get('messenger-id');
-
-echo $messenger->id;
-echo $messenger->name;
-```
-
-### Create messenger
-
-```php
-$new = $sm->messenger->create([
-    'name'        => 'My Messenger',
-    'description' => 'In-app messenger',
-    // other fields as defined by the API
-]);
-```
-
-### Update messenger
-
-```php
-$updated = $sm->messenger->update('messenger-id', [
-    'name' => 'Updated name',
+$sidemail->project->update([
+    'name' => 'New name',
+    'emailTemplateDesign' => [
+        'logo' => [
+            'sizeWidth' => 50,
+            'href'      => 'https://example.com',
+            'file'      => 'PHN2ZyBjbGlwLXJ1bGU9ImV2ZW5vZGQi...', // base64 encoded image
+        ],
+        'font'   => ['name' => 'Acme'],
+        'colors' => ['highlight' => '#0000FF', 'isDarkModeEnabled' => true],
+        'unsubscribeText'          => 'Darse de baja',
+        'footerTextTransactional'  => "You're receiving these emails because you registered for Acme Inc.",
+    ],
 ]);
 ```
 
-### Delete messenger
+### Get a project
+
+Retrieves project data based on the `apiKey` provided into `Sidemail`. This method works for both normal projects created via Sidemail dashboard and linked projects created via the API.
 
 ```php
-$resp = $sm->messenger->delete('messenger-id');
+$response = $sidemail->project->get();
 ```
 
----
+### Delete a linked project
 
-## Domains API
-
-Entry point: `$sm->domains`
-
-### List domains
+Permanently deletes a linked project based on the `apiKey` provided into `Sidemail`. It cannot be undone.
 
 ```php
-$domains = $sm->domains->list();
-
-// usually $domains->domains is an array
-foreach ($domains->domains as $domain) {
-    echo $domain['id'], ' ', $domain['name'] ?? '', PHP_EOL;
-}
+$sidemail->project->delete();
 ```
 
-### Create domain
+## More info
 
-```php
-$domain = $sm->domains->create([
-    'name' => 'example.com',
-    // other fields as defined by the API
-]);
-```
-
-### Delete domain
-
-```php
-$resp = $sm->domains->delete('domain-id');
-```
-
----
-
-## Project API
-
-Entry point: `$sm->project`
-
-### Create project
-
-```php
-$project = $sm->project->create([
-    'name' => 'My Project',
-    // other fields
-]);
-```
-
-### Get project
-
-```php
-$project = $sm->project->get();
-
-echo $project->id;
-echo $project->name;
-```
-
-### Update project
-
-```php
-$updated = $sm->project->update([
-    'name' => 'Updated project name',
-]);
-```
-
-### Delete project
-
-```php
-$resp = $sm->project->delete();
-```
-
----
-
-## Custom HTTP client
-
-You can provide your own HTTP client by implementing `Sidemail\HttpClient`:
-
-```php
-namespace Sidemail;
-
-interface HttpClient
-{
-    public function request(
-        string $method,
-        string $url,
-        array $headers = [],
-        array $query = [],
-        ?string $body = null,
-        float $timeout = 10.0
-    ): HttpResponse;
-}
-```
-
-Example integration with Guzzle:
-
-```php
-use Sidemail\HttpClient;
-use Sidemail\HttpResponse;
-use Sidemail\Sidemail;
-
-final class GuzzleHttpClient implements HttpClient
-{
-    public function __construct(private \GuzzleHttp\Client $client)
-    {
-    }
-
-    public function request(
-        string $method,
-        string $url,
-        array $headers = [],
-        array $query = [],
-        ?string $body = null,
-        float $timeout = 10.0
-    ): HttpResponse {
-        $response = $this->client->request($method, $url, [
-            'headers' => $headers,
-            'query'   => $query,
-            'body'    => $body,
-            'timeout' => $timeout,
-        ]);
-
-        return new HttpResponse(
-            $response->getStatusCode(),
-            (string) $response->getBody(),
-            $response->getHeaders()
-        );
-    }
-}
-
-$sm = new Sidemail(
-    apiKey: 'your-api-key',
-    httpClient: new GuzzleHttpClient(new \GuzzleHttp\Client())
-);
-```
+Visit [Sidemail docs](https://sidemail.io/docs/) for more information.

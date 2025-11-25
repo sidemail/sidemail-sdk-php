@@ -349,8 +349,8 @@ final class QueryResult implements \IteratorAggregate
     public ?int $total;
     public ?int $limit;
     public ?int $offset;
-    public ?string $nextCursor;
-    public ?string $prevCursor;
+    public ?string $paginationCursorNext;
+    public ?string $paginationCursorPrev;
     public bool $hasMore;
     public bool $hasPrev;
 
@@ -373,8 +373,8 @@ final class QueryResult implements \IteratorAggregate
         ?Closure $fetchPrev,
         bool $hasMore = false,
         bool $hasPrev = false,
-        ?string $nextCursor = null,
-        ?string $prevCursor = null,
+        ?string $paginationCursorNext = null,
+        ?string $paginationCursorPrev = null,
         ?int $offset = null,
         ?int $limit = null
     ) {
@@ -392,8 +392,8 @@ final class QueryResult implements \IteratorAggregate
 
         $this->limit = $limit;
         $this->offset = $offset;
-        $this->nextCursor = $nextCursor;
-        $this->prevCursor = $prevCursor;
+        $this->paginationCursorNext = $paginationCursorNext;
+        $this->paginationCursorPrev = $paginationCursorPrev;
         $this->hasMore = $hasMore;
         $this->hasPrev = $hasPrev;
     }
@@ -463,13 +463,13 @@ final class QueryResult implements \IteratorAggregate
     public function __toString(): string
     {
         return sprintf(
-            '<QueryResult items=%d has_more=%s has_prev=%s offset=%s next_cursor=%s prev_cursor=%s limit=%s>',
+            '<QueryResult items=%d has_more=%s has_prev=%s offset=%s pagination_cursor_next=%s pagination_cursor_prev=%s limit=%s>',
             count($this->data),
             $this->hasMore ? 'true' : 'false',
             $this->hasPrev ? 'true' : 'false',
             $this->offset ?? 'null',
-            $this->nextCursor ?? 'null',
-            $this->prevCursor ?? 'null',
+            $this->paginationCursorNext ?? 'null',
+            $this->paginationCursorPrev ?? 'null',
             $this->limit ?? 'null'
         );
     }
