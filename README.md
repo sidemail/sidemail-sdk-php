@@ -165,8 +165,6 @@ The library throws specific exceptions for different error scenarios:
 | `SidemailAuthException` | Invalid or missing API key (HTTP 401/403).                   |
 | `SidemailApiException`  | API errors with status code and error details.               |
 
-### Handling errors
-
 ```php
 use Sidemail\Sidemail;
 use Sidemail\SidemailException;
@@ -198,6 +196,40 @@ try {
 }
 ```
 
+## Response objects
+
+All API responses are wrapped in a `Resource` object enabling property access while remaining array-like.
+
+```php
+$email = $sidemail->email->get('email-id');
+
+echo $email->id;              // Property access
+echo $email->status;
+
+echo $email['id'];            // Array-style access
+
+$rawJson = $email->raw();     // Original JSON as associative array
+$array = $email->toArray();   // Fully unwrapped associative array
+```
+
+## Attachments helper
+
+Use the static `fileToAttachment()` helper to easily attach files to your emails:
+
+```php
+use Sidemail\Sidemail;
+
+$attachment = Sidemail::fileToAttachment('invoice.pdf', file_get_contents('invoice.pdf'));
+
+$sidemail->sendEmail([
+    'toAddress'   => 'user@email.com',
+    'fromAddress' => 'you@example.com',
+    'subject'     => 'Invoice',
+    'text'        => 'Invoice attached.',
+    'attachments' => [$attachment],
+]);
+```
+
 ## Auto-pagination
 
 The package provides automatic pagination for list and search endpoints that return paginated results. This allows you to iterate through all results without manually handling pagination cursors.
@@ -205,7 +237,7 @@ The package provides automatic pagination for list and search endpoints that ret
 ```php
 $result = $sidemail->contacts->list();
 
-foreach ($result->autoPaging() as $contact) {
+foreach ($result->autoPaginate() as $contact) {
     echo $contact['emailAddress'];
     // Process each contact across all pages automatically
 }
@@ -307,7 +339,7 @@ $result = $sidemail->contacts->query([
     'query' => ['customProps.plan' => 'pro'],
 ]);
 
-foreach ($result->autoPaging() as $contact) {
+foreach ($result->autoPaginate() as $contact) {
     echo $contact->emailAddress;
 }
 ```

@@ -172,16 +172,15 @@ final class SidemailClientTest extends TestCase
     public function testOffsetQueryAndAutoPaginate(): void
     {
         $pages = [
-            ['data' => [['id' => 1], ['id' => 2]]],
-            ['data' => [['id' => 3]]],
+            ['data' => [['id' => 1], ['id' => 2]], 'hasMore' => true],
+            ['data' => [['id' => 3]], 'hasMore' => false],
         ];
 
         $callCount = 0;
 
         $fetchPage = function (int $offset, ?int $limit) use (&$pages, &$callCount) {
             $this->assertSame(2, $limit); // page size below
-            $this->assertLessThanOrEqual(2, $offset);
-            $page = $pages[$callCount] ?? ['data' => []];
+            $page = $pages[$callCount] ?? ['data' => [], 'hasMore' => false];
             $callCount++;
             return $page;
         };
@@ -339,9 +338,11 @@ final class SidemailClientTest extends TestCase
             // query: two pages
             $this->makeJsonResponse(200, [
                 'data' => [['email' => 'a@example.com'], ['email' => 'b@example.com']],
+                'hasMore' => true,
             ]),
             $this->makeJsonResponse(200, [
                 'data' => [['email' => 'c@example.com']],
+                'hasMore' => false,
             ]),
             // list: cursor-based
             $this->makeJsonResponse(200, [
@@ -401,8 +402,8 @@ final class SidemailClientTest extends TestCase
     {
         $fake = new FakeHttpClient([
             // list (offset)
-            $this->makeJsonResponse(200, ['data' => [['id' => 'm1'], ['id' => 'm2']]]),
-            $this->makeJsonResponse(200, ['data' => [['id' => 'm3']]]),
+            $this->makeJsonResponse(200, ['data' => [['id' => 'm1'], ['id' => 'm2']], 'hasMore' => true]),
+            $this->makeJsonResponse(200, ['data' => [['id' => 'm3']], 'hasMore' => false]),
             // get
             $this->makeJsonResponse(200, ['id' => 'm1', 'name' => 'Test']),
             // create

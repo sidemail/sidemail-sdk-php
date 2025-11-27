@@ -202,8 +202,7 @@ final class Resource implements \ArrayAccess, \IteratorAggregate, \Countable
         $this->raw = $data;
 
         foreach ($data as $k => $v) {
-            $key = self::safeAttr((string) $k);
-            $this->data[$key] = wrap_any($v);
+            $this->data[(string) $k] = wrap_any($v);
         }
     }
 
@@ -301,36 +300,6 @@ final class Resource implements \ArrayAccess, \IteratorAggregate, \Countable
         return count($this->data);
     }
 
-    private static function safeAttr(string $name): string
-    {
-        if (!self::isValidIdentifier($name) || self::isPhpKeyword($name)) {
-            return $name . '_';
-        }
-        return $name;
-    }
-
-    private static function isValidIdentifier(string $name): bool
-    {
-        return (bool) preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $name);
-    }
-
-    private static function isPhpKeyword(string $name): bool
-    {
-        static $keywords = [
-            'abstract', 'and', 'array', 'as', 'break', 'callable', 'case', 'catch',
-            'class', 'clone', 'const', 'continue', 'declare', 'default', 'do', 'else',
-            'elseif', 'enddeclare', 'endfor', 'endforeach', 'endif', 'endswitch',
-            'endwhile', 'extends', 'final', 'finally', 'for', 'foreach', 'function',
-            'global', 'goto', 'if', 'implements', 'include', 'include_once', 'instanceof',
-            'insteadof', 'interface', 'isset', 'list', 'match', 'namespace', 'new', 'or',
-            'print', 'private', 'protected', 'public', 'readonly', 'require',
-            'require_once', 'return', 'static', 'switch', 'throw', 'trait', 'try', 'unset',
-            'use', 'var', 'while', 'xor', 'yield', 'int', 'float', 'bool', 'string',
-            'true', 'false', 'null', 'void', 'iterable', 'object', 'mixed', 'never',
-        ];
-        return in_array(strtolower($name), $keywords, true);
-    }
-
     public function __debugInfo(): array
     {
         // show only the wrapped structure when using var_dump()
@@ -406,7 +375,7 @@ final class QueryResult implements \IteratorAggregate
     /**
      * @return \Generator<mixed>
      */
-    public function autoPaging(): \Generator
+    public function autoPaginate(): \Generator
     {
         foreach ($this->data as $item) {
             yield $item;
@@ -434,7 +403,7 @@ final class QueryResult implements \IteratorAggregate
     /**
      * @return \Generator<mixed>
      */
-    public function autoPagingPrev(): \Generator
+    public function autoPaginatePrev(): \Generator
     {
         while ($this->hasPrev && $this->fetchPrev) {
             [$prevPage, $hasPrev] = ($this->fetchPrev)();
@@ -493,8 +462,6 @@ function offset_query(
     $items = page_get($first, $dataKey) ?? [];
     $received = count($items);
 
-    var_dump($first);
-
     $hasMoreFirst = (bool) (page_get($first, $hasMoreKey) ?? false);
 
     $fetchNext = function () use (
@@ -515,6 +482,7 @@ function offset_query(
         $page = $fetchPage($offset, $pageSize) ?? [];
         $items = page_get($page, $dataKey) ?? [];
         $received = count($items);
+
         $hasMore = (bool) (page_get($page, $hasMoreKey) ?? false);
 
         return [$page, $hasMore];
