@@ -32,7 +32,7 @@ final class CurlHttpClient implements HttpClient
 
     public function __construct(?string $defaultUserAgent = null)
     {
-        $this->defaultUserAgent = $defaultUserAgent ?? 'sidemail-sdk-php/0.1.0';
+        $this->defaultUserAgent = $defaultUserAgent ?? 'sidemail-sdk-php/unknown';
     }
 
     public function request(
@@ -1224,11 +1224,18 @@ final class Sidemail
         string $baseUrl = self::API_ROOT,
         float $timeout = 10.0,
         ?HttpClient $httpClient = null,
-        string $userAgent = 'sidemail-sdk-php/0.1.0'
+        ?string $userAgent = null
     ) {
         $key = $apiKey ?: getenv('SIDEMAIL_API_KEY');
         if (!$key) {
             throw new SidemailException('Missing API key. Pass apiKey or set SIDEMAIL_API_KEY.');
+        }
+
+        if ($userAgent === null) {
+            $version = class_exists(\Composer\InstalledVersions::class)
+                ? (\Composer\InstalledVersions::getPrettyVersion('sidemail/sidemail') ?? 'unknown')
+                : 'unknown';
+            $userAgent = "sidemail-sdk-php/{$version}";
         }
 
         $this->cfg = new Config(
