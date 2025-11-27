@@ -1,6 +1,6 @@
 # Sidemail PHP library
 
-The Sidemail PHP library provides convenient access to the Sidemail API from applications written in PHP.
+Official Sidemail.io PHP library provides convenient access to the Sidemail API from PHP applications.
 
 ## Requirements
 
@@ -17,9 +17,7 @@ composer require sidemail/sidemail
 
 ## Usage
 
-First, the package needs to be configured with your project's API key, which you can find in the Sidemail Dashboard after you signed up.
-
-Initiate the SDK:
+The package needs to be configured with your project's API key, which you can find in the Sidemail Dashboard. Here is how to send your first email:
 
 ```php
 <?php
@@ -30,18 +28,16 @@ use Sidemail\Sidemail;
 
 // Create Sidemail instance and set your API key.
 $sidemail = new Sidemail(apiKey: 'xxxxx');
-```
 
-Then, you can call `$sidemail->sendEmail` to send emails like so:
-
-```php
-$sidemail->sendEmail([
+$response = $sidemail->sendEmail([
     'toAddress'     => 'user@email.com',
     'fromAddress'   => 'you@example.com',
     'fromName'      => 'Your app',
     'templateName'  => 'Welcome',
     'templateProps' => ['foo' => 'bar'],
 ]);
+
+echo "Email sent! ID: {$response->id}";
 ```
 
 The response will look like this:
@@ -53,10 +49,38 @@ The response will look like this:
 }
 ```
 
-Learn more about Sidemail API:
+Shortcut `$sidemail->sendEmail(...)` calls `$sidemail->email->send(...)` under the hood.
 
-- [See all available API options](https://sidemail.io/docs/send-transactional-emails#discover-all-available-api-parameters)
-- [See all possible errors and error codes](https://sidemail.io/docs/send-transactional-emails#api-errors)
+### Authentication
+
+Explicit key:
+
+```php
+use Sidemail\Sidemail;
+
+$sidemail = new Sidemail(apiKey: 'your-api-key');
+```
+
+Or if you set environment variable `SIDEMAIL_API_KEY`, then simply:
+
+```php
+use Sidemail\Sidemail;
+
+$sidemail = new Sidemail(); // reads SIDEMAIL_API_KEY
+```
+
+### Client configuration
+
+```php
+use Sidemail\Sidemail;
+
+$sidemail = new Sidemail(
+    apiKey: 'your-api-key',
+    baseUrl: 'https://api.sidemail.io/v1', // override for testing/mocking
+    timeout: 10.0, // per-request timeout (seconds)
+    httpClient: $customHttpClient, // custom HttpClient implementation (proxies, retries, etc.)
+);
+```
 
 ## Email sending examples
 
@@ -130,9 +154,53 @@ $sidemail->sendEmail([
 ]);
 ```
 
+## Error handling
+
+The library throws specific exceptions for different error scenarios:
+
+| Exception               | Description                                                  |
+| ----------------------- | ------------------------------------------------------------ |
+| `SidemailException`     | **Base exception class.** All other exceptions extend this.  |
+| `NetworkException`      | Connection errors, timeouts, and other network-level issues. |
+| `SidemailAuthException` | Invalid or missing API key (HTTP 401/403).                   |
+| `SidemailApiException`  | API errors with status code and error details.               |
+
+### Handling errors
+
+```php
+use Sidemail\Sidemail;
+use Sidemail\SidemailException;
+use Sidemail\SidemailAuthException;
+use Sidemail\SidemailApiException;
+use Sidemail\NetworkException;
+
+try {
+    $response = $sidemail->sendEmail([
+        'toAddress'    => 'user@email.com',
+        'fromAddress'  => 'you@example.com',
+        'fromName'     => 'Your app',
+        'templateName' => 'Welcome',
+    ]);
+} catch (SidemailAuthException $e) {
+    // Invalid API key
+    echo "Authentication failed: " . $e->getMessage();
+} catch (SidemailApiException $e) {
+    // API returned an error (4xx/5xx)
+    echo "API error: " . $e->getMessage();
+    echo "Status code: " . $e->getStatus();
+    print_r($e->getPayload()); // Full error response
+} catch (NetworkException $e) {
+    // Connection failed, timeout, etc.
+    echo "Network error: " . $e->getMessage();
+} catch (SidemailException $e) {
+    // Catch-all for any other Sidemail errors
+    echo "Error: " . $e->getMessage();
+}
+```
+
 ## Auto-pagination
 
-The SDK provides automatic pagination for list and search endpoints that return paginated results. This allows you to iterate through all results without manually handling pagination cursors.
+The package provides automatic pagination for list and search endpoints that return paginated results. This allows you to iterate through all results without manually handling pagination cursors.
 
 ```php
 $result = $sidemail->contacts->list();
@@ -146,7 +214,9 @@ foreach ($result->autoPaging() as $contact) {
 **Supported methods:**
 
 - `$sidemail->contacts->list()`
+- `$sidemail->contacts->query()`
 - `$sidemail->email->search()`
+- `$sidemail->messenger->list()`
 
 ## Email methods
 
@@ -227,6 +297,21 @@ echo $result->hasMore ? 'true' : 'false';     // boolean if more data
 echo $result->paginationCursorNext;           // cursor for next page
 ```
 
+### Query contacts (filtering)
+
+Filter contacts. This endpoint supports [auto-pagination](#auto-pagination).
+
+```php
+$result = $sidemail->contacts->query([
+    'limit' => 100,
+    'query' => ['customProps.plan' => 'pro'],
+]);
+
+foreach ($result->autoPaging() as $contact) {
+    echo $contact->emailAddress;
+}
+```
+
 ### Delete a contact
 
 ```php
@@ -240,12 +325,10 @@ $response = $sidemail->contacts->delete('marry@lightning.com');
 A linked project is automatically associated with a regular project based on the `apiKey` provided into `Sidemail`. To personalize the email template design, make a subsequent update API request. Linked projects will be visible within the parent project on the API page in your Sidemail dashboard.
 
 ```php
-// Create a linked project && save API key from $response->apiKey to your datastore
 $response = $sidemail->project->create([
     'name' => 'Customer X linked project',
 ]);
-
-// $user->save(['sidemailApiKey' => $response->apiKey]) ...
+// Important! Save $response->apiKey for later use
 ```
 
 ### Update a linked project
@@ -283,6 +366,24 @@ Permanently deletes a linked project based on the `apiKey` provided into `Sidema
 
 ```php
 $sidemail->project->delete();
+```
+
+## Messenger API (newsletters)
+
+```php
+$list = $sidemail->messenger->list(['limit' => 20]);
+$messenger = $sidemail->messenger->get('messenger-id');
+$created = $sidemail->messenger->create(['subject' => 'My Messenger', 'markdown' => 'Broadcast message...']);
+$updated = $sidemail->messenger->update('messenger-id', ['name' => 'Updated name']);
+$deleted = $sidemail->messenger->delete('messenger-id');
+```
+
+## Sending domains API
+
+```php
+$list = $sidemail->domains->list();
+$domain = $sidemail->domains->create(['name' => 'example.com']);
+$deleted = $sidemail->domains->delete('domain-id');
 ```
 
 ## More info
