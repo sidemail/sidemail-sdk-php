@@ -123,22 +123,22 @@ final class SidemailClientTest extends TestCase
         $this->assertSame('plain text', $out);
     }
 
-    public function testHandleResponseAuthErrorThrowsSidemailAuthException(): void
+    public function testHandleResponseAuthErrorThrowsSidemailException(): void
     {
         $resp = $this->makeJsonResponse(401, ['developerMessage' => 'Unauthorized test']);
-        $this->expectException(Sidemail\SidemailAuthException::class);
+        $this->expectException(Sidemail\SidemailException::class);
         Sidemail\handle_response($resp);
     }
 
-    public function testHandleResponseApiErrorThrowsSidemailApiException(): void
+    public function testHandleResponseApiErrorThrowsSidemailException(): void
     {
         $resp = $this->makeJsonResponse(400, ['developerMessage' => 'Bad request']);
         try {
             Sidemail\handle_response($resp);
-            $this->fail('Expected SidemailApiException not thrown.');
-        } catch (Sidemail\SidemailApiException $e) {
-            $this->assertSame(400, $e->getStatus());
-            $this->assertSame('Bad request', $e->getPayload()['developerMessage']);
+            $this->fail('Expected SidemailException not thrown.');
+        } catch (Sidemail\SidemailException $e) {
+            $this->assertStringContainsString('HTTP 400', $e->getMessage());
+            $this->assertStringContainsString('Bad request', $e->getMessage());
         }
     }
 

@@ -50,7 +50,7 @@ final class CurlHttpClient implements HttpClient
 
         $ch = curl_init($url);
         if ($ch === false) {
-            throw new NetworkException('Unable to initialize cURL.');
+            throw new SidemailException('Unable to initialize cURL.');
         }
 
         $headerLines = [];
@@ -94,7 +94,7 @@ final class CurlHttpClient implements HttpClient
             $err = curl_error($ch);
             $code = curl_errno($ch);
             curl_close($ch);
-            throw new NetworkException("cURL error ({$code}): {$err}");
+            throw new SidemailException("cURL error ({$code}): {$err}");
         }
 
         $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: 0;
@@ -122,52 +122,39 @@ final class HttpResponse
  */
 class SidemailException extends RuntimeException
 {
-}
+    private ?int $httpStatus;
+    private $errorCode;
+    private $moreInfo;
 
-/**
- * Network-level errors (connection, timeouts, etc.).
- */
-class NetworkException extends SidemailException
-{
-}
-
-/**
- * Auth-related errors (401/403).
- */
-class SidemailAuthException extends SidemailException
-{
-}
-
-/**
- * API-level errors with status code & payload.
- */
-class SidemailApiException extends SidemailException
-{
-    private int $status;
-    private array $payload;
-
-    public function __construct(int $status, array $payload = [])
-    {
-        $this->status = $status;
-        $this->payload = $payload;
-        $message = sprintf(
-            'HTTP %d: %s',
-            $status,
-            $payload['developerMessage'] ?? 'API error'
-        );
+    public function __construct(
+        string $message = "",
+        ?int $httpStatus = null,
+        $errorCode = null,
+        $moreInfo = null
+    ) {
         parent::__construct($message);
+        $this->httpStatus = $httpStatus;
+        $this->errorCode = $errorCode;
+        $this->moreInfo = $moreInfo;
     }
 
-    public function getStatus(): int
+    public function getHttpStatus(): ?int
     {
-        return $this->status;
+        return $this->httpStatus;
     }
 
-    public function getPayload(): array
+    public function getErrorCode()
     {
-        return $this->payload;
+        return $this->errorCode;
+    }
+
+    public function getMoreInfo()
+    {
+        return $this->moreInfo;
     }
 }
+
+
 
 /**
  * SDK configuration.
@@ -647,10 +634,25 @@ function handle_response(HttpResponse $resp): mixed
     }
 
     if (in_array($resp->statusCode, [401, 403], true)) {
-        throw new SidemailAuthException($payload['developerMessage'] ?? 'Unauthorized');
+        throw new SidemailException(
+            $payload['developerMessage'] ?? 'Unauthorized',
+            $resp->statusCode,
+            $payload['errorCode'] ?? null,
+            $payload['moreInfo'] ?? null
+        );
     }
 
-    throw new SidemailApiException($resp->statusCode, $payload);
+    $message = sprintf(
+        'HTTP %d: %s',
+        $resp->statusCode,
+        $payload['developerMessage'] ?? 'API error'
+    );
+    throw new SidemailException(
+        $message,
+        $resp->statusCode,
+        $payload['errorCode'] ?? null,
+        $payload['moreInfo'] ?? null
+    );
 }
 
 /**

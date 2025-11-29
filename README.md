@@ -156,21 +156,20 @@ $sidemail->sendEmail([
 
 ## Error handling
 
-The library throws specific exceptions for different error scenarios:
+All errors thrown by this library are instances of `Sidemail\SidemailException`.
+This exception provides additional error details via getter methods:
 
-| Exception               | Description                                                  |
-| ----------------------- | ------------------------------------------------------------ |
-| `SidemailException`     | **Base exception class.** All other exceptions extend this.  |
-| `NetworkException`      | Connection errors, timeouts, and other network-level issues. |
-| `SidemailAuthException` | Invalid or missing API key (HTTP 401/403).                   |
-| `SidemailApiException`  | API errors with status code and error details.               |
+| Property        | Description                           |
+| --------------- | ------------------------------------- |
+| getMessage()    | Exception message (human-readable)    |
+| getHttpStatus() | HTTP status code if available         |
+| getErrorCode()  | Sidemail error code if provided       |
+| getMoreInfo()   | Additional info or documentation link |
 
 ```php
+
 use Sidemail\Sidemail;
 use Sidemail\SidemailException;
-use Sidemail\SidemailAuthException;
-use Sidemail\SidemailApiException;
-use Sidemail\NetworkException;
 
 try {
     $response = $sidemail->sendEmail([
@@ -179,47 +178,22 @@ try {
         'fromName'     => 'Your app',
         'templateName' => 'Welcome',
     ]);
-} catch (SidemailAuthException $e) {
-    // Invalid API key
-    echo "Authentication failed: " . $e->getMessage();
-} catch (SidemailApiException $e) {
-    // API returned an error (4xx/5xx)
-    echo "API error: " . $e->getMessage();
-    echo "Status code: " . $e->getStatus();
-    print_r($e->getPayload()); // Full error response
-} catch (NetworkException $e) {
-    // Connection failed, timeout, etc.
-    echo "Network error: " . $e->getMessage();
 } catch (SidemailException $e) {
-    // Catch-all for any other Sidemail errors
-    echo "Error: " . $e->getMessage();
+    // All Sidemail errors are caught here
+    echo "Error: " . $e->getMessage() . PHP_EOL;
+    echo "HTTP status: " . var_export($e->getHttpStatus(), true) . PHP_EOL;
+    echo "Error code: " . var_export($e->getErrorCode(), true) . PHP_EOL;
+    echo "More info: " . var_export($e->getMoreInfo(), true) . PHP_EOL;
 }
-```
-
-## Response objects
-
-All API responses are wrapped in a `Resource` object enabling property access while remaining array-like.
-
-```php
-$email = $sidemail->email->get('email-id');
-
-echo $email->id;              // Property access
-echo $email->status;
-
-echo $email['id'];            // Array-style access
-
-$rawJson = $email->raw();     // Original JSON as associative array
-$array = $email->toArray();   // Fully unwrapped associative array
 ```
 
 ## Attachments helper
 
-Use the static `fileToAttachment()` helper to easily attach files to your emails:
+You can use the `Sidemail::fileToAttachment` static helper to easily encode file data for attachments:
 
 ```php
-use Sidemail\Sidemail;
-
-$attachment = Sidemail::fileToAttachment('invoice.pdf', file_get_contents('invoice.pdf'));
+$pdfData = file_get_contents('./invoice.pdf');
+$attachment = Sidemail::fileToAttachment('invoice.pdf', $pdfData);
 
 $sidemail->sendEmail([
     'toAddress'   => 'user@email.com',
